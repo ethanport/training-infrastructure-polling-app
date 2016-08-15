@@ -23,4 +23,13 @@ This application has the following parameters. Each is a polling frequency in se
 
 ---
 
+#Logging
+
+These are some helpful log categories:
+
+* `org.mule.module.http.internal.request` displays details on the expected 500 status after the RDS server wait_timeout expires. Set `DEBUG` for details, or set to `WARN` or `ERROR` for production. 
+
+* `com.mulesoft.training.apps` displays application generated logs. `DEBUG` logs the entire response HTML message payload for both success (`200` status code) and failure responses (`500` status code). `INFO` just logs a successful HTML response event, but does not log the actual message payload. Use `WARN` or `ERROR` for production. 
+
+
 Note: This application is a temporary kludge until we can get the DB connection pooling correct in the main training application. 
