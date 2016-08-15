@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:context="http://www.springframework.org/schema/context" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd">
+
+    <sub-flow name="processAccountsResponse">
+        <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <set-variable variableName="test" value="#[message.payloadAs(java.lang.String).toString().contains('&lt;title&gt;MUA - All Accounts&lt;/title&gt;')]" doc:name="Variable"/>
+        <choice doc:name="Choice">
+            <when expression="#[ !(message.inboundProperties.'http.status'==500) &amp;&amp; message.payloadAs(java.lang.String).toString().contains('&lt;title&gt;MUA - All Accounts&lt;/title&gt;')]">
+                <logger message="#['Response received from '+flowVars.currentDB+' DB from /accounts/show']" level="INFO" category="com.mulesoft.training.apps" doc:name="Copy_of_Logger"/>
+                <logger message="#['Response from '+flowVars.currentDB+' DB from /accounts/show payload is: '+message.payload]" level="DEBUG" category="com.mulesoft.training.apps" doc:name="Logger"/>
+            </when>
+            <otherwise>
+                <logger message="#[flowVars.currentDB+' DB query to /accounts/show failed with status '+message.inboundProperties.'http.status']" level="ERROR" category="com.mulesoft.training.apps" doc:name="Logger"/>
+                <logger message="#[flowVars.currentDB+' DB query to /accounts/show failed with response payload: '+message.payload]" level="DEBUG" category="com.mulesoft.training.apps" doc:name="Logger"/>
+            </otherwise>
+        </choice>
+    </sub-flow>
+    
+    <sub-flow name="processAmericanResponse">
+        <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <choice doc:name="Copy_of_Choice">
+            <when expression="#[ !(message.inboundProperties.'http.status'==500) &amp;&amp; message.payloadAs(java.lang.String).toString().contains('planeType')]">
+                <logger message="#['Response received from '+flowVars.currentDB+' DB from /american']" level="INFO" category="com.mulesoft.training.apps" doc:name="Copy_of_Logger"/>
+                <logger message="#['Response from '+flowVars.currentDB+' DB from /american payload is: '+message.payload]" level="DEBUG" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Logger"/>
+            </when>
+            <otherwise>
+                <logger message="#[flowVars.currentDB+' DB query to /american failed with http status '+message.inboundProperties.'http.status']" level="ERROR" category="com.mulesoft.training.apps" doc:name="Copy_of_Logger"/>
+                <logger message="#[flowVars.currentDB+' DB query to /american failed with response payload: '+message.payload]" level="DEBUG" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Logger"/>
+            </otherwise>
+        </choice>
+    </sub-flow>
+
+	<flow name="refreshTrainingApp">
+        <poll doc:name="Poll">
+            <fixed-frequency-scheduler frequency="${ilt.poll.frequency}" timeUnit="SECONDS"/>
+            <logger message="Refreshing DB connection in ilt training apps" level="INFO" category="com.mulesoft.training.apps" doc:name="Logger"/>
+        </poll>
+        <set-variable variableName="currentDB" value="#['ilt']" doc:name="set currentDB=ilt"/>
+        <http:request config-ref="ilt-app-HTTP" path="/essentials/american/CLE" method="GET" doc:name="ilt-app-american-HTTP request">
+            <http:success-status-code-validator values="200..299,500"/>
+        </http:request>
+        <flow-ref name="processAmericanResponse" doc:name="processAmericanResponse"/>
+        <http:request config-ref="ilt-app-HTTP" path="/essentials/accounts/show" method="GET" doc:name="ilt-app-accounts-HTTP request"/>
+        <flow-ref name="processAccountsResponse" doc:name="processAccountsResponse"/>
+        <exception-strategy ref="iltExceptionStrategy" doc:name="iltExceptionStrategy"/>
+	</flow>
+	
+    <flow name="Copy_of_refreshTrainingApp" doc:description="Copy of process with separate HTTP requestor connection. ">
+        <poll doc:name="Copy_of_Poll">
+            <fixed-frequency-scheduler frequency="${ilt.poll.frequency2}" startDelay="2" timeUnit="SECONDS"/>
+            <logger message="Refreshing DB connection in ilt training apps" level="INFO" category="com.mulesoft.training.apps" doc:name="Copy_of_Logger"/>
+        </poll>
+        <set-variable variableName="currentDB" value="#['ilt copy']" doc:name="Copy_of_set currentDB=ilt"/>
+        <http:request config-ref="ilt-app-HTTP2" path="/essentials/american/CLE" method="GET" doc:name="ilt-app-american-HTTP request2">
+            <http:success-status-code-validator values="200..299,500"/>
+        </http:request>
+        <flow-ref name="processAmericanResponse" doc:name="processAmericanResponse"/>
+        <http:request config-ref="ilt-app-HTTP2" path="/essentials/accounts/show" method="GET" doc:name="ilt-app-accounts-HTTP request2"/>
+        <flow-ref name="processAccountsResponse" doc:name="processAccountsResponse"/>
+        <exception-strategy ref="iltExceptionStrategy" doc:name="iltExceptionStrategy"/>
+    </flow>
+    
+    <flow name="refreshTrainingUApp">
+        <poll doc:name="Poll">
+            <fixed-frequency-scheduler frequency="${mu.poll.frequency}" startDelay="1" timeUnit="SECONDS"/>
+            <logger message="Refreshing DB connection in mu training apps" level="INFO" category="com.mulesoft.training.apps" doc:name="Logger"/>
+        </poll>
+        <set-variable variableName="currentDB" value="#['mu']" doc:name="set currentDB=mu"/>
+        <http:request config-ref="mu-training-HTTP" path="/essentials/american/CLE" method="GET" doc:name="mu-training-american-HTTP request"/>
+        <flow-ref name="processAmericanResponse" doc:name="processAmericanResponse"/>
+        <http:request config-ref="mu-training-HTTP" path="/essentials/accounts/show" method="GET" doc:name="mu-training-accounts-HTTP request"/>
+        <flow-ref name="processAccountsResponse" doc:name="Flow Reference"/>
+        <exception-strategy ref="muExceptionStrategy" doc:name="muExceptionStrategy"/>
+    </flow>
+    
+    <flow name="Copy_of_refreshTrainingUApp" doc:description="Copy of mu process with separate HTTP requestor connection. ">
+        <poll doc:name="Copy_of_Poll">
+            <fixed-frequency-scheduler frequency="${mu.poll.frequency2}" startDelay="4" timeUnit="SECONDS"/>
+            <logger message="Copy of Refreshing DB connection in mu training apps" level="INFO" category="com.mulesoft.training.apps" doc:name="Copy_of_Logger"/>
+        </poll>
+        <set-variable variableName="currentDB" value="#['mu copy']" doc:name="set currentDB=mu"/>
+        <http:request config-ref="mu-training-HTTP2" path="/essentials/american/CLE" method="GET" doc:name="mu-training-american-HTTP request"/>
+        <flow-ref name="processAmericanResponse" doc:name="processAmericanResponse"/>
+        <http:request config-ref="mu-training-HTTP2" path="/essentials/accounts/show" method="GET" doc:name="mu-training-accounts-HTTP request"/>
+        <flow-ref name="processAccountsResponse" doc:name="processAccountsResponse"/>
+        <exception-strategy ref="muExceptionStrategy" doc:name="muExceptionStrategy"/>
+    </flow>
+</mule>

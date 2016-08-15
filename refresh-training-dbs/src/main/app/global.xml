@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
+http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd">
+
+	<http:request-config name="ilt-app-HTTP"
+		host="ilt.mulesoft-training.com" port="80" basePath="/"
+		doc:name="HTTP Request Configuration" responseTimeout="10000" />
+
+	<http:request-config name="mu-training-HTTP"
+		host="mu.mulesoft-training.com" port="80" basePath="/"
+		doc:name="HTTP Request Configuration" usePersistentConnections="false" />
+
+	<http:request-config name="ilt-app-HTTP2"
+		host="ilt.mulesoft-training.com" port="80" basePath="/"
+		doc:name="HTTP Request Configuration" responseTimeout="10000" />
+
+	<http:request-config name="mu-training-HTTP2"
+		host="mu.mulesoft-training.com" port="80" basePath="/"
+		doc:name="HTTP Request Configuration" usePersistentConnections="false" />
+
+	<context:property-placeholder location="refresh-training-apps.properties" />
+    <flow name="retryHttpRequestToMu">
+        <http:request config-ref="mu-training-HTTP" path="/essentials/american/CLE" method="GET" doc:name="Copy_of_mu-training-HTTP request"/>
+        <choice doc:name="Choice">
+            <when expression="#[message.payloadAs(java.lang.String).toString().contains('planeType')]">
+                <logger message="#['mu DB 500 error handled by another HTTP request - received from mu DB from /american']" level="WARN" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Copy_of_Logger"/>
+                <logger message="#['Response from mu DB from /american payload is: '+message.payload]" level="DEBUG" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Copy_of_Copy_of_Logger"/>
+            </when>
+            <otherwise>
+                <logger message="#['catch exception: mu DB query to /american failed']" level="ERROR" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Copy_of_Logger"/>
+                <logger message="#['Catch exception: mu DB query to /american failed with response payload: '+message.payload]" level="DEBUG" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Copy_of_Copy_of_Logger"/>
+            </otherwise>
+        </choice>
+    </flow>
+	<flow name="retryHttpRequestToILT">
+		<http:request config-ref="ilt-app-HTTP" path="/essentials/american/CLE"
+			method="GET" doc:name="Copy_of_ilt-app-HTTP request" />
+		<choice doc:name="Choice">
+			<when
+				expression="#[message.payloadAs(java.lang.String).toString().contains('planeType')]">
+				<logger
+					message="#['ilt DB 500 error handled by another HTTP request - received from ilt DB from /american']"
+					level="WARN" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Logger" />
+				<logger
+					message="#['Catch exception: Response from ilt DB from /american payload is: '+message.payload]"
+					level="DEBUG" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Copy_of_Logger" />
+			</when>
+			<otherwise>
+				<logger message="#['Catch exception: ilt DB query to /american failed']"
+					level="ERROR" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Logger" />
+				<logger
+					message="#['Catch exception: ilt DB query to /american failed with response payload: '+message.payload]"
+					level="DEBUG" category="com.mulesoft.training.apps" doc:name="Copy_of_Copy_of_Copy_of_Logger" />
+			</otherwise>
+		</choice>
+	</flow>
+
+	<choice-exception-strategy name="iltExceptionStrategy">
+		<catch-exception-strategy
+			when="#[exception.causeMatches('org.mule.module.http.internal.request.*')] "
+			doc:name="Catch Exception Strategy">
+			<flow-ref name="retryHttpRequestToILT" doc:name="retryHttpRequestILT" />
+		</catch-exception-strategy>
+		<catch-exception-strategy doc:name="Catch Exception Strategy">
+			<logger message="Other ilt db exception occured" level="ERROR"
+				doc:name="Logger" category="com.mulesoft.training.apps" />
+		</catch-exception-strategy>
+
+	</choice-exception-strategy>
+
+	<choice-exception-strategy name="muExceptionStrategy">
+		<catch-exception-strategy
+			when="#[exception.causeMatches('org.mule.module.http.internal.request.*')]"
+			doc:name="Copy_of_Catch Exception Strategy">
+            <flow-ref name="retryHttpRequestToMu" doc:name="retryHttpRequestToMu"/>
+		</catch-exception-strategy>
+		<catch-exception-strategy doc:name="Catch Exception Strategy">
+			<logger message="Other mu db exception occured" level="ERROR"
+				doc:name="Logger" category="com.mulesoft.training.apps" />
+		</catch-exception-strategy>
+
+	</choice-exception-strategy>
+
+</mule>
