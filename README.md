@@ -10,6 +10,7 @@ The application polls each of these URLs:
 There is a an issue where any of these URLs will occassionally return a 500 status, or other exception, due to the training application keeping the DB connection open after the backing Amazon RDS (database) server (iltdb.mulesoft-training.com or mudb.mulesoft-training.com) exceeds its wait_timeout interval. 
 
 Each flow in this app checks for a 500 result, and if a 500 result is returned, the flow tries again. The second HTTP request seems to succeed, and re-connects the training application to the Amazon RDS server. 
+
 ---
 #Parameters
 
